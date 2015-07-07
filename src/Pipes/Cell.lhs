@@ -5,14 +5,19 @@
 > -- Maintainer:  pat@jantar.org
 > -- Stability:   experimental
 > -- Portability: portable
+> --
+> -- Pipes converting between cellular and traditional tabular data.
 
 > module Pipes.Cell (
->   toRows,
->   fromRows, fromMaybeRows, fromEitherRows
+>   toRows, fromRows,
 > ) where
 
+> import Control.Monad
 > import Data.Cell
 > import Pipes
+
+> -- | An infinite pipe that converts a stream of cells into a stream of rows,
+> --   with each row represented by a non-empty list of cell values.
 
 > toRows :: (Monad m, Monoid a) => Pipe (Cell a) [a] m ()
 > toRows = go [] []
@@ -25,6 +30,8 @@
 >       EOC -> go (mconcat (reverse cell') : row) []
 >       EOR -> yield (reverse (mconcat (reverse cell') : row)) >> go [] []
 >       EOT -> yield (reverse (mconcat (reverse cell') : row)) >> return ()
+
+> -- | An infinite pipe that converts a stream of rows to a stream of cells.
 
 > fromRows :: Monad m => Pipe [a] (Cell a) m r
 > fromRows = forever (await >>= fromRow)

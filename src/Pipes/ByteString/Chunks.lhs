@@ -6,7 +6,14 @@
 > -- Stability:   experimental
 > -- Portability: portable
 > --
-> -- ...
+> -- When binary data is streamed through a pipe, it's often partitioned
+> -- arbitrarily into /packets/ with no semantic significance, beyond
+> -- facilitation of processing in constant space. This is similar to
+> -- the chunking mechanism within lazy bytestrings, and, accordingly,
+> -- it's often convenient to unify the two mechanisms, by converting
+> -- between pipes over lazy bytestrings and pipes over strict chunks
+> -- these bytestrings. This module provides efficient implementations
+> -- of these conversions.
 
 > module Pipes.ByteString.Chunks (
 >   toChunks, fromChunks
@@ -14,18 +21,24 @@
 
 > import Data.ByteString (ByteString)
 > import Data.Int
-> import Data.Word
 > import Pipes
 
 > import qualified Data.ByteString as ByteString
 > import qualified Data.ByteString.Lazy as Lazy
 > import qualified Pipes.Prelude as Pipes
 
+> -- | An infinite pipe that converts lazy bytestring
+> --   input into strict bytestring chunk output.
+
 > toChunks :: Monad m => Pipe Lazy.ByteString ByteString m r
 > toChunks = Pipes.map Lazy.toChunks >-> Pipes.concat
 
+> -- | An infinite pipe that converts strict bytestrings
+> --   into lazy bytestrings with the specified minimum
+> --   and maximum size, without copying any data.
+
 > fromChunks :: Monad m => Int64 -> Int64 -> Pipe ByteString Lazy.ByteString m r
-> fromChunks m n =
+> fromChunks m n
 >   | (m > n || n <= 0) = error ("fromChunks: invalid string size range: [" ++ show m ++ ".." ++ show n ++ "]")
 >   | (m <= 0) = fromMaxChunks n
 >   | (n >= fromIntegral (maxBound::Int)) = fromMinChunks m
@@ -76,7 +89,7 @@
 >       if cl < r then
 >         loop (r - cl) (c:cs)
 >       else
->         yield (Lazy.fromChunks (reverse (c:cs))) >> loop [] 0
+>         yield (Lazy.fromChunks (reverse (c:cs))) >> loop 0 []
 
 > fromExactChunks :: Monad m => Int64 -> Pipe ByteString Lazy.ByteString m r
 > fromExactChunks n
@@ -91,5 +104,5 @@
 >       loop r cs -- skip empty chunks
 >     else case compare cl r of
 >       LT -> loop (r - cl) (c:cs)
->       EQ -> yield (Lazy.fromChunks (reverse (c:cs))) >> loop [] 0
+>       EQ -> yield (Lazy.fromChunks (reverse (c:cs))) >> loop 0 []
 >       GT -> let (c1, c2) = ByteString.splitAt (fromIntegral r) c in yield (Lazy.fromChunks (reverse (c1:cs))) >> loop' 0 [] c2 (cl - r)
